@@ -12,6 +12,7 @@ interface Item {
   id: number;
   nome: string;
   valor: number;
+  responsavelIds: number[];
 }
 
 interface RachaData {
@@ -26,6 +27,7 @@ export default function RachaPage() {
   const [rachaData, setRachaData] = useState<RachaData | null>(null);
   const [novoItem, setNovoItem] = useState("");
   const [novoValor, setNovoValor] = useState("");
+  const [responsavelIds, setResponsavelIds] = useState<number[]>([]);
   const [incluirTaxa, setIncluirTaxa] = useState(false);
 
   useEffect(() => {
@@ -41,7 +43,8 @@ export default function RachaPage() {
     if (
       novoItem.trim() &&
       novoValor.trim() &&
-      !isNaN(Number.parseFloat(novoValor))
+      !isNaN(Number.parseFloat(novoValor)) &&
+      responsavelIds.length > 0
     ) {
       if (rachaData) {
         const novosItens = [
@@ -50,6 +53,7 @@ export default function RachaPage() {
             id: Date.now(),
             nome: novoItem.trim(),
             valor: Number.parseFloat(novoValor),
+            responsavelIds,
           },
         ];
 
@@ -62,6 +66,7 @@ export default function RachaPage() {
         localStorage.setItem("rachaAtual", JSON.stringify(novoRachaData));
         setNovoItem("");
         setNovoValor("");
+        setResponsavelIds([]);
       }
     }
   };
@@ -83,7 +88,7 @@ export default function RachaPage() {
     if (rachaData) {
       let total = rachaData.itens.reduce((sum, item) => sum + item.valor, 0);
       if (incluirTaxa) {
-        total *= 1.1; // 10% de taxa
+        total *= 1.1;
       }
       return total;
     }
@@ -95,7 +100,6 @@ export default function RachaPage() {
       const total = calcularTotal();
       const valorPorPessoa = total / rachaData.participantes.length;
 
-      // Armazenar os valores calculados
       const calculoData = {
         ...rachaData,
         total,
@@ -103,7 +107,23 @@ export default function RachaPage() {
         valorPorPessoa,
       };
 
+      // Salva cálculo atual
       localStorage.setItem("rachaCalculado", JSON.stringify(calculoData));
+
+      // Atualiza histórico com nova entrada
+      const historicoAtual = JSON.parse(
+        localStorage.getItem("historico") || "[]"
+      );
+      const novaEntrada = {
+        ...calculoData,
+        origem: "historico",
+        id: Date.now(),
+      };
+      localStorage.setItem(
+        "historico",
+        JSON.stringify([...historicoAtual, novaEntrada])
+      );
+
       router.push("/total");
     }
   };
@@ -122,7 +142,7 @@ export default function RachaPage() {
             <span>Adicionar Item +</span>
           </div>
 
-          <div className="flex space-x-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
             <Input
               value={novoItem}
               onChange={(e) => setNovoItem(e.target.value)}
@@ -148,6 +168,27 @@ export default function RachaPage() {
             </Button>
           </div>
 
+          <div className="flex flex-wrap gap-2 text-sm">
+            {rachaData.participantes.map((p) => (
+              <label key={p.id} className="flex items-center space-x-1">
+                <input
+                  type="checkbox"
+                  value={p.id}
+                  checked={responsavelIds.includes(p.id)}
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    setResponsavelIds((prev) =>
+                      e.target.checked
+                        ? [...prev, id]
+                        : prev.filter((pid) => pid !== id)
+                    );
+                  }}
+                />
+                <span>{p.nome}</span>
+              </label>
+            ))}
+          </div>
+
           <div className="space-y-2 mt-6">
             <h3 className="font-medium">Itens</h3>
 
@@ -158,7 +199,21 @@ export default function RachaPage() {
                     key={item.id}
                     className="flex items-center justify-between p-2 border rounded-lg"
                   >
-                    <span>{item.nome}</span>
+                    <span>
+                      {item.nome}{" "}
+                      <span className="text-sm text-gray-500">
+                        (
+                        {item.responsavelIds
+                          .map(
+                            (id) =>
+                              rachaData.participantes.find((p) => p.id === id)
+                                ?.nome
+                          )
+                          .filter(Boolean)
+                          .join(", ")}
+                        )
+                      </span>
+                    </span>
                     <div className="flex items-center space-x-2">
                       <span>R$ {item.valor.toFixed(2)}</span>
                       <Button

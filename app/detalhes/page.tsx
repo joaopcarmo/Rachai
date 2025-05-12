@@ -1,7 +1,9 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
+import { Button } from "@/components/ui/button";
 
 interface Participante {
   id: number;
@@ -12,6 +14,7 @@ interface Item {
   id: number;
   nome: string;
   valor: number;
+  responsavelIds: number[];
 }
 
 interface RachaCalculado {
@@ -21,7 +24,6 @@ interface RachaCalculado {
   data: string;
   total: number;
   incluiTaxa: boolean;
-  valorPorPessoa: number;
 }
 
 export default function DetalhesPage() {
@@ -41,55 +43,61 @@ export default function DetalhesPage() {
     return <div className="p-6">Carregando...</div>;
   }
 
+  const calcularValorTaxa = () => {
+    const totalBruto = rachaData.itens.reduce(
+      (sum, item) => sum + item.valor,
+      0
+    );
+    return rachaData.incluiTaxa ? totalBruto * 0.1 : 0;
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <Header title={rachaData.titulo} />
       <div className="flex flex-col flex-grow p-6 space-y-6 overflow-y-auto">
-        <h2 className="text-xl font-semibold">Detalhes</h2>
-        <div className="space-y-6">
-          {rachaData.participantes.map((p) => (
-            <div key={p.id} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span>{p.nome}</span>
-                <span className="font-medium">
-                  R$ {rachaData.valorPorPessoa.toFixed(2)}
-                </span>
+        <h2 className="text-xl font-semibold">Detalhes dos Itens</h2>
+
+        <div className="space-y-4">
+          {rachaData.itens.map((item) => (
+            <div key={item.id} className="p-4 border rounded-lg">
+              <div className="flex justify-between font-medium">
+                <span>{item.nome}</span>
+                <span>R$ {item.valor.toFixed(2)}</span>
               </div>
-              <div className="pl-4 text-sm text-gray-600 space-y-1 border-l-2 border-gray-200">
-                {rachaData.itens.map((item) => (
-                  <div key={item.id} className="flex justify-between">
-                    <span>-{item.nome}:</span>
-                    <span>
-                      R${" "}
-                      {(item.valor / rachaData.participantes.length).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                {rachaData.incluiTaxa && (
-                  <div className="flex justify-between">
-                    <span>-Taxa de serviço (10%):</span>
-                    <span>
-                      R${" "}
-                      {(
-                        (rachaData.total -
-                          rachaData.itens.reduce(
-                            (sum, item) => sum + item.valor,
-                            0
-                          )) /
-                        rachaData.participantes.length
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                )}
+              <div className="text-sm text-gray-500 mt-1">
+                Dividido entre:{" "}
+                {item.responsavelIds
+                  .map(
+                    (id) =>
+                      rachaData.participantes.find((p) => p.id === id)?.nome
+                  )
+                  .filter(Boolean)
+                  .join(", ")}
               </div>
             </div>
           ))}
+
+          {rachaData.incluiTaxa && (
+            <div className="p-4 border rounded-lg bg-yellow-50">
+              <span className="text-sm text-gray-700">
+                Foi adicionada uma taxa de 10% (R${" "}
+                {calcularValorTaxa().toFixed(2)}) ao total.
+              </span>
+            </div>
+          )}
+
           <div className="border-t pt-4 mt-4">
             <div className="flex items-center justify-between font-semibold">
-              <span>Total:</span>
+              <span>Total com taxa:</span>
               <span>R$ {rachaData.total.toFixed(2)}</span>
             </div>
           </div>
+        </div>
+
+        <div className="pt-4">
+          <Button className="w-full" onClick={() => router.push("/total")}>
+            Ver total por pessoa
+          </Button>
         </div>
       </div>
     </div>

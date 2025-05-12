@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/header";
@@ -13,92 +14,97 @@ interface Item {
   id: number;
   nome: string;
   valor: number;
+  responsavelIds: number[];
 }
 
 interface RachaCalculado {
   titulo: string;
   participantes: Participante[];
   itens: Item[];
+  incluiTaxa: boolean;
   data: string;
   total: number;
-  incluiTaxa: boolean;
-  valorPorPessoa: number;
 }
 
 export default function TotalPage() {
   const router = useRouter();
-  const [rachaData, setRachaData] = useState<RachaCalculado | null>(null);
+  const [racha, setRacha] = useState<RachaCalculado | null>(null);
+  const [valoresIndividuais, setValoresIndividuais] = useState<
+    Record<number, number>
+  >({});
 
   useEffect(() => {
     const data = localStorage.getItem("rachaCalculado");
     if (data) {
-      setRachaData(JSON.parse(data));
+      const parsed = JSON.parse(data);
+      setRacha(parsed);
+
+      const valores: Record<number, number> = {};
+      parsed.participantes.forEach((p: Participante) => (valores[p.id] = 0));
+
+      parsed.itens.forEach((item: Item) => {
+        const qtd = item.responsavelIds.length;
+        if (qtd > 0) {
+          const valorPorPessoa = item.valor / qtd;
+          item.responsavelIds.forEach((id: number) => {
+            valores[id] += valorPorPessoa;
+          });
+        }
+      });
+
+      if (parsed.incluiTaxa) {
+        for (const id in valores) {
+          valores[id] *= 1.1;
+        }
+      }
+
+      setValoresIndividuais(valores);
     } else {
       router.push("/opcoes");
     }
   }, [router]);
 
-  const salvarRacha = () => {
-    if (rachaData) {
-      // Salvar no histórico
-      const historico = JSON.parse(localStorage.getItem("historico") || "[]");
-      historico.push({
-        ...rachaData,
-        id: Date.now(),
-        data: new Date().toISOString(),
-      });
-      localStorage.setItem("historico", JSON.stringify(historico));
-
-      // Limpar dados do racha atual
-      localStorage.removeItem("rachaAtual");
-      localStorage.removeItem("rachaCalculado");
-      router.push("/opcoes");
-    }
-  };
-
-  const verDetalhes = () => {
-    router.push("/detalhes");
-  };
-
-  if (!rachaData) {
+  if (!racha) {
     return <div className="p-6">Carregando...</div>;
   }
 
   return (
     <div className="flex flex-col h-screen">
-      <Header title={rachaData.titulo} />
-      <div className="flex flex-col flex-grow p-6 space-y-6">
-        <h2 className="text-xl font-semibold text-center">Total</h2>
-        <div className="space-y-4 mt-4">
-          {rachaData.participantes.map((p) => (
-            <div key={p.id} className="flex items-center justify-between p-2">
-              <span>{p.nome}</span>
-              <span className="font-medium">
-                R$ {rachaData.valorPorPessoa.toFixed(2)}
-              </span>
-            </div>
-          ))}
-          <div className="border-t pt-4 mt-4">
-            <div className="flex items-center justify-between font-semibold">
-              <span>Total:</span>
-              <span>R$ {rachaData.total.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
+      <Header title="Total por pessoa" />
+
+      <div className="flex flex-col flex-grow p-6 space-y-4 overflow-y-auto">
+        <h2 className="text-xl font-semibold mb-4">
+          Total geral: R$ {racha.total.toFixed(2)}
+        </h2>
+
+        {Object.entries(valoresIndividuais)
+          .sort(([, a], [, b]) => b - a)
+          .map(([id, valor]) => {
+            const p = racha.participantes.find(
+              (part) => part.id === Number(id)
+            );
+            return (
+              <div
+                key={id}
+                className="flex justify-between items-center p-4 border rounded-lg"
+              >
+                <span>{p?.nome}</span>
+                <span className="font-semibold">R$ {valor.toFixed(2)}</span>
+              </div>
+            );
+          })}
       </div>
-      <div className="p-6 space-y-3">
-        <Button
-          className="w-full bg-[#4CAF50] hover:bg-[#45a049] text-white font-semibold py-4 rounded-full"
-          onClick={salvarRacha}
-        >
-          Salvar
-        </Button>
+
+      <div className="p-6">
         <Button
           variant="outline"
-          className="w-full border-[#4CAF50] text-[#4CAF50] font-semibold py-4 rounded-full"
-          onClick={verDetalhes}
+          className="w-full mb-2"
+          onClick={() => router.push("/detalhes")}
         >
-          Ver Detalhes
+          Ver detalhes da divisão
+        </Button>
+        <Button className="w-full" onClick={() => router.push("/opcoes")}>
+          Novo Racha
         </Button>
       </div>
     </div>
